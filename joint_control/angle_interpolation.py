@@ -22,6 +22,7 @@
 
 from pid import PIDAgent
 from keyframes import hello
+from scipy import interpolate
 
 
 class AngleInterpolationAgent(PIDAgent):
@@ -32,15 +33,38 @@ class AngleInterpolationAgent(PIDAgent):
                  sync_mode=True):
         super(AngleInterpolationAgent, self).__init__(simspark_ip, simspark_port, teamname, player_id, sync_mode)
         self.keyframes = ([], [], [])
+        self.start_time = -1
 
     def think(self, perception):
         target_joints = self.angle_interpolation(self.keyframes, perception)
+        # target_joints['RHipYawPitch'] = target_joints['LHipYawPitch'] # uncomment this line for the stand motions
         self.target_joints.update(target_joints)
         return super(AngleInterpolationAgent, self).think(perception)
 
     def angle_interpolation(self, keyframes, perception):
         target_joints = {}
         # YOUR CODE HERE
+        if self.start_time < 0:
+            self.start_time = perception.time
+        real_time = perception.time - self.start_time
+        for i in range(len(keyframes[0])):
+            name = keyframes[0][i]
+            time = keyframes[1][i]
+            keys = keyframes[2][i]
+            points = ([0], [0])
+            points_b = [(0, 0)]
+            for i in range(len(time)):
+                points_b.append((time[i], keys[i][0]))
+                points[0].append(time[i])
+                points[1].append(keys[i][0])
+            #print(points)
+            p = interpolate.CubicSpline(points[0], points[1], bc_type='natural')
+            #foo = interpolate.splrep(points[0], points[1])
+            if real_time > time[-1]:
+                target_joints[name] = points[1][-1]
+                # print(name, " end")
+            else:
+                target_joints[name] =  p(real_time) #interpolate.splev(real_time, foo)
 
         return target_joints
 
